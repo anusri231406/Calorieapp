@@ -129,6 +129,10 @@
         box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
       }
 
+      .btn:active {
+        transform: scale(0.95);
+      }
+
       .btn-camera {
         background: #3498db;
         color: white;
@@ -245,7 +249,6 @@
         }
       }
 
-      /* New Total Card Styling */
       .total-card {
         background: #686666da;
         padding: 20px;
@@ -257,8 +260,8 @@
         color: white;
         transition: background 0.3s;
         display: none;
-        height: auto; /* Allow height to adjust to content */
-        line-height: 1.5; /* Initially hidden */
+        height: auto;
+        line-height: 1.5;
       }
 
       body.dark .total-card {
@@ -306,6 +309,12 @@
         .total-card {
           max-width: 100%;
         }
+
+        .loader {
+          width: 50px;
+          height: 50px;
+          border-width: 6px;
+        }
       }
     </style>
   </head>
@@ -313,24 +322,32 @@
     <div class="container">
       <div class="header">
         <div style="width: 60px"></div>
-        <!-- Spacer to balance the layout -->
         <div class="header-title">
           <h1>Calorie Tracker</h1>
         </div>
         <div class="theme-toggle">
           <input type="checkbox" id="theme-toggle" class="toggle-checkbox" />
-          <label for="theme-toggle" class="toggle-label"></label>
+          <label
+            for="theme-toggle"
+            class="toggle-label"
+            aria-label="Toggle dark mode"
+          ></label>
         </div>
       </div>
 
       <div class="upload-section">
         <div class="upload-options">
-          <button class="btn btn-camera" onclick="openCamera()">
+          <button
+            class="btn btn-camera"
+            onclick="openCamera()"
+            aria-label="Take a photo of your food"
+          >
             Take Photo
           </button>
           <button
             class="btn btn-upload"
-            onclick="document.getElementById('fileInput').click()"
+            id="uploadBtn"
+            aria-label="Upload a photo from your gallery"
           >
             Upload Photo
           </button>
@@ -366,23 +383,48 @@
         document.body.classList.toggle("dark");
       });
 
+      // Handle camera and gallery separately
+      function openCamera() {
+        const fileInput = document.getElementById("fileInput");
+        fileInput.setAttribute("capture", "camera");
+        fileInput.click();
+      }
+
+      document.getElementById("uploadBtn").addEventListener("click", () => {
+        const fileInput = document.getElementById("fileInput");
+        fileInput.removeAttribute("capture");
+        fileInput.click();
+      });
+
       function previewImage(event) {
         const preview = document.getElementById("preview");
         const analyzeBtn = document.getElementById("analyzeBtn");
         const results = document.getElementById("results");
         selectedFile = event.target.files[0];
-        const reader = new FileReader();
 
+        if (selectedFile && selectedFile.size > 5 * 1024 * 1024) {
+          alert("File size exceeds 5MB. Please choose a smaller image.");
+          return;
+        }
+
+        const reader = new FileReader();
         reader.onload = function (e) {
-          preview.src = e.target.result;
-          preview.style.display = "block";
-          analyzeBtn.style.display = "block";
-          results.innerHTML = ""; // Clear previous results
-          totalCalories = 0; // Reset total calories
-          document.getElementById("totalCard").style.display = "none"; // Hide total card on new preview
-          document.getElementById(
-            "totalCard"
-          ).innerHTML = `<h3>Total : ${totalCalories}KCal</h3>`;
+          const img = new Image();
+          img.onload = function () {
+            if (img.width < img.height) {
+              alert("For best results, use landscape orientation.");
+            }
+            preview.src = e.target.result;
+            preview.style.display = "block";
+            analyzeBtn.style.display = "block";
+            results.innerHTML = "";
+            totalCalories = 0;
+            document.getElementById("totalCard").style.display = "none";
+            document.getElementById(
+              "totalCard"
+            ).innerHTML = `<h3>Total : ${totalCalories}KCal</h3>`;
+          };
+          img.src = e.target.result;
         };
 
         if (selectedFile) {
@@ -392,12 +434,6 @@
         }
       }
 
-      function openCamera() {
-        const fileInput = document.getElementById("fileInput");
-        fileInput.setAttribute("capture", "camera");
-        fileInput.click();
-      }
-
       async function analyzeFood() {
         const loader = document.getElementById("loader");
         const results = document.getElementById("results");
@@ -405,8 +441,8 @@
         const totalCard = document.getElementById("totalCard");
         results.innerHTML = "";
         loader.style.display = "block";
-        analyzeBtn.style.display = "none"; // Hide button immediately
-        totalCard.style.display = "none"; // Hide total card during analysis
+        analyzeBtn.style.display = "none";
+        totalCard.style.display = "none";
 
         if (!selectedFile) {
           console.error("No file selected for analysis");
@@ -423,7 +459,7 @@
           formData.append("image", selectedFile);
 
           const imgbbResponse = await fetch(
-            "https://api.imgbb.com/1/upload?key=472dcfe113556f536dcd756b024d86b1",
+            "https://api.imgbb.com/1/upload?key=472dcfe113556f536dcd756b024d86b1", // Move to backend in production
             {
               method: "POST",
               body: formData,
@@ -455,7 +491,7 @@
               headers: {
                 "Content-Type": "application/json",
                 Authorization:
-                  "Bearer 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",
+                  "Bearer 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", // Move to backend in production
               },
               body: JSON.stringify({
                 messages: [
@@ -468,9 +504,7 @@
                       },
                       {
                         type: "image_url",
-                        image_url: {
-                          url: imageUrl,
-                        },
+                        image_url: { url: imageUrl },
                       },
                     ],
                   },
@@ -480,9 +514,7 @@
                 max_completion_tokens: 1024,
                 top_p: 1,
                 stream: false,
-                response_format: {
-                  type: "json_object",
-                },
+                response_format: { type: "json_object" },
                 stop: null,
               }),
             }
@@ -498,7 +530,6 @@
           const groqData = await groqResponse.json();
           console.log("Grok API response:", JSON.stringify(groqData, null, 2));
 
-          // Safely parse the content
           let nutritionData;
           try {
             if (typeof groqData.choices[0].message.content === "string") {
@@ -526,7 +557,7 @@
           if (items.length === 0) {
             results.innerHTML =
               '<div class="card"><h3>No items detected</h3></div>';
-            totalCard.style.display = "none"; // Hide total card if no items
+            totalCard.style.display = "none";
             return;
           }
 
@@ -536,50 +567,43 @@
               <div class="card">
                 <h3>${item.item_name || "Unknown Item"}</h3>
                 <div class="nutrition-info">
-                  <div class="info-item">
-                    <span>Quantity</span>
-                    <span>${item.quantity || "N/A"}</span>
-                  </div>
-                  <div class="info-item">
-                    <span>Calories</span>
-                    <span>${item.total_calories || 0} kcal</span>
-                  </div>
-                  <div class="info-item">
-                    <span>Protein</span>
-                    <span>${item.total_protein || 0} g</span>
-                  </div>
-                  <div class="info-item">
-                    <span>Carbs</span>
-                    <span>${item.total_carbs || 0} g</span>
-                  </div>
-                  <div class="info-item">
-                    <span>Fat</span>
-                    <span>${item.total_fats || 0} g</span>
-                  </div>
-                  <div class="info-item">
-                    <span>Calcium</span>
-                    <span>${item.calcium || 0} mg</span>
-                  </div>
-                  <div class="info-item">
-                    <span>Iron</span>
-                    <span>${item.iron || 0} mg</span>
-                  </div>
+                  <div class="info-item"><span>Quantity</span><span>${
+                    item.quantity || "N/A"
+                  }</span></div>
+                  <div class="info-item"><span>Calories</span><span>${
+                    item.total_calories || 0
+                  } kcal</span></div>
+                  <div class="info-item"><span>Protein</span><span>${
+                    item.total_protein || 0
+                  } g</span></div>
+                  <div class="info-item"><span>Carbs</span><span>${
+                    item.total_carbs || 0
+                  } g</span></div>
+                  <div class="info-item"><span>Fat</span><span>${
+                    item.total_fats || 0
+                  } g</span></div>
+                  <div class="info-item"><span>Calcium</span><span>${
+                    item.calcium || 0
+                  } mg</span></div>
+                  <div class="info-item"><span>Iron</span><span>${
+                    item.iron || 0
+                  } mg</span></div>
                 </div>
               </div>
             `;
             results.innerHTML += card;
           });
 
-          // Show and update total card
           totalCard.style.display = "block";
           totalCard.innerHTML = `<h3>Total Calorie : ${totalCalories}KCal</h3>`;
         } catch (error) {
           console.error("Error analyzing image:", error.message);
           loader.style.display = "none";
           results.innerHTML = `<div class="card"><h3>Error: ${error.message}</h3></div>`;
-          totalCard.style.display = "none"; // Hide total card on error
+          totalCard.style.display = "none";
         }
       }
     </script>
   </body>
 </html>
+
